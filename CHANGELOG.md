@@ -1,5 +1,45 @@
 # Changelog
 
+## v2.3.9
+- Major speedup: course data (ids, metadata, stats, coupon validity) is now
+  pre-fetched in parallel (8 workers) before enrollment instead of sequentially
+  per course. Measured: ~8x faster enrollment prep (6.5 min -> 49 s for 300
+  courses at 0.4s/request latency)
+- Scraping tuned: more workers on detail-fetch sites + dead sites removed.
+  Measured: 2.9x faster full scrape (92 s -> 32 s) with 64% more courses
+  (1070 -> 1755)
+- Trending focus: when student-count filters are active, most-enrolled
+  (best-selling) courses are enrolled first
+- Live progress in CLI/GUI during the pre-fetch phase
+
+## v2.3.8
+- Added FreebiesGlobal coupon site (verified working, ~290 coupons per run)
+- Added student count filters (min/max students enrolled, 0 = off)
+- Added review count filters (min/max reviews, 0 = off)
+- New filters fetch stats via Udemy API; if stats can't be fetched the course is NOT excluded
+- Confirmed settings list covers all 13 official Udemy categories
+- GUI: new "Student Count Filter" and "Review Count Filter" panels in Advanced tab
+
+## v2.3.7
+- Fixed 504/503 responses being falsely counted as enrollment success (now verifies via API)
+- Removed `exit()` calls that killed the whole app on Udemy throttling; retry-after is now respected
+- One failing course no longer stops the entire enrollment run
+- Fixed `check_course` crash when course data fetch fails
+- Fixed E-next scraper crash on missing enroll link
+- Fixed `fetch_page` returning None and crashing scrapers
+- Fixed broken case-insensitive title exclusion filter
+- Fixed GUI category/language checkboxes being dropped from layout
+- Fixed GUI pending counter showing 0/20 instead of actual batch size 5
+- Fixed log file being wiped on every start (mode=a for rotation)
+- Removed hardcoded cookies from Course Joiner scraper
+- Fixed stale Course Joiner category id (74 -> 1000)
+- Disabled dead scrapers (Course Vania, IDownloadCoupons) - sites no longer expose public coupons
+- Removed Tutorial Bar from settings (scraper disabled)
+- Fixed update check hanging at startup; added timeouts everywhere
+- Added clean LoginException when Udemy blocks login
+- Deleted dead old_cli.py and colors.py
+- Added unit tests (tests/test_base.py)
+
 ## v2.3.6
 - Fix settings and log file not saving
 

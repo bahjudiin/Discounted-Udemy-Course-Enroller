@@ -25,7 +25,6 @@ console = Console()
 
 
 def handle_error(error_message, error=None, exit_program=True):
-    logger.error(f"ERROR: {error_message}")
     """
     Handle errors consistently throughout the application.
 
@@ -34,6 +33,7 @@ def handle_error(error_message, error=None, exit_program=True):
         error: The exception object (optional)
         exit_program: Whether to exit the program after displaying the error (default: True)
     """
+    logger.error(f"ERROR: {error_message}")
     console.print(
         f"\n[bold white on red] ERROR [/bold white on red] [bold red]{error_message}[/bold red]"
     )
@@ -173,7 +173,7 @@ def create_scraping_thread(site: str):
         while getattr(scraper, f"{code_name}_length") == 0:
             time.sleep(0.1)
         if getattr(scraper, f"{code_name}_length") == -1:
-            raise Exception(f"Error in: {site}")
+            raise RuntimeError(f"Error in: {site}")
 
         udemy.progress.update(task_id, total=getattr(scraper, f"{code_name}_length"))
 
@@ -196,10 +196,11 @@ def create_scraping_thread(site: str):
         )
 
         if getattr(scraper, f"{code_name}_error"):
-            raise Exception(f"Error in: {site}")
+            raise RuntimeError(f"Error in: {site}")
     except Exception:
         error = getattr(scraper, f"{code_name}_error", traceback.format_exc())
-        handle_error(f"Error in {site}", error=error, exit_program=True)
+        logger.error(f"Scraper failed for {site}: {error[:500]}")
+        udemy.progress.update(task_id, completed=100)
 
 
 if __name__ == "__main__":

@@ -40,15 +40,17 @@
     "sites": {
         "Real Discount": true,
         "Courson": true,
-        "IDownloadCoupons": true,
-        "Tutorial Bar": true,
         "E-next": true,
         "Discudemy": true,
         "Udemy Freebies": true,
         "Course Joiner": true,
-        "Course Vania": true
+        "FreebiesGlobal": true
     },
     "min_rating": 0.0,
+    "min_students": 0,
+    "max_students": 0,
+    "min_reviews": 0,
+    "max_reviews": 0,
     "instructor_exclude": [
         "instructor-1",
         "instructor-2",

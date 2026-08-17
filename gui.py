@@ -329,89 +329,38 @@ for key in udemy.settings["sites"]:
 categories_lo = []
 categories_k = list(udemy.settings["categories"].keys())
 categories_v = list(udemy.settings["categories"].values())
-for index, _ in enumerate(udemy.settings["categories"]):
-    if index % 3 == 0:
-        try:
-            categories_lo.append(
-                [
-                    sg.Checkbox(
-                        categories_k[index],
-                        default=categories_v[index],
-                        key=categories_k[index],
-                        size=(18, 1),
-                    ),
-                    sg.Checkbox(
-                        categories_k[index + 1],
-                        default=categories_v[index + 1],
-                        key=categories_k[index + 1],
-                        size=(18, 1),
-                    ),
-                    sg.Checkbox(
-                        categories_k[index + 2],
-                        default=categories_v[index + 2],
-                        key=categories_k[index + 2],
-                        size=(18, 1),
-                    ),
-                ]
+for i in range(0, len(categories_k), 3):
+    row = []
+    for j in range(3):
+        idx = i + j
+        if idx < len(categories_k):
+            row.append(
+                sg.Checkbox(
+                    categories_k[idx],
+                    default=categories_v[idx],
+                    key=categories_k[idx],
+                    size=(18, 1),
+                )
             )
-        except IndexError:
-            categories_lo.append(
-                [
-                    sg.Checkbox(
-                        categories_k[index],
-                        default=categories_v[index],
-                        key=categories_k[index],
-                        size=(18, 1),
-                    )
-                ]
-            )
+    categories_lo.append(row)
 
 languages_lo = []
 languages_k = list(udemy.settings["languages"].keys())
 languages_v = list(udemy.settings["languages"].values())
-for index, _ in enumerate(udemy.settings["languages"]):
-    if index % 3 == 0:
-        try:
-            languages_lo.append(
-                [
-                    sg.Checkbox(
-                        languages_k[index],
-                        default=languages_v[index],
-                        key=languages_k[index],
-                        size=(10, 1),
-                    ),
-                    sg.Checkbox(
-                        languages_k[index + 1],
-                        default=languages_v[index + 1],
-                        key=languages_k[index + 1],
-                        size=(10, 1),
-                    ),
-                    sg.Checkbox(
-                        languages_k[index + 2],
-                        default=languages_v[index + 2],
-                        key=languages_k[index + 2],
-                        size=(10, 1),
-                    ),
-                ]
+for i in range(0, len(languages_k), 3):
+    row = []
+    for j in range(3):
+        idx = i + j
+        if idx < len(languages_k):
+            row.append(
+                sg.Checkbox(
+                    languages_k[idx],
+                    default=languages_v[idx],
+                    key=languages_k[idx],
+                    size=(10, 1),
+                )
             )
-
-        except IndexError:
-            languages_lo.append(
-                [
-                    sg.Checkbox(
-                        languages_k[index],
-                        default=languages_v[index],
-                        key=languages_k[index],
-                        size=(10, 1),
-                    ),
-                    sg.Checkbox(
-                        languages_k[index + 1],
-                        default=languages_v[index + 1],
-                        key=languages_k[index + 1],
-                        size=(10, 1),
-                    ),
-                ]
-            )
+    languages_lo.append(row)
 
 main_tab = [
     [
@@ -486,6 +435,42 @@ courses_last_updated_lo = [
     ]
 ]
 
+students_lo = [
+    [
+        sg.Text("Min", size=(4, 1)),
+        sg.Input(
+            default_text=str(udemy.settings.get("min_students", 0)),
+            key="min_students",
+            size=(8, 1),
+        ),
+        sg.Text("Max", size=(4, 1)),
+        sg.Input(
+            default_text=str(udemy.settings.get("max_students", 0)),
+            key="max_students",
+            size=(8, 1),
+        ),
+    ],
+    [sg.Text("Students enrolled (0 = off)")],
+]
+
+reviews_lo = [
+    [
+        sg.Text("Min", size=(4, 1)),
+        sg.Input(
+            default_text=str(udemy.settings.get("min_reviews", 0)),
+            key="min_reviews",
+            size=(8, 1),
+        ),
+        sg.Text("Max", size=(4, 1)),
+        sg.Input(
+            default_text=str(udemy.settings.get("max_reviews", 0)),
+            key="max_reviews",
+            size=(8, 1),
+        ),
+    ],
+    [sg.Text("Reviews (0 = off)")],
+]
+
 
 advanced_tab = [
     [
@@ -521,6 +506,26 @@ advanced_tab = [
             border_width=4,
             title_location="n",
             key="f_course_last_updated",
+            font=25,
+        ),
+    ],
+    [
+        sg.Frame(
+            "Student Count Filter",
+            students_lo,
+            "#4deeea",
+            border_width=4,
+            title_location="n",
+            key="f_students",
+            font=25,
+        ),
+        sg.Frame(
+            "Review Count Filter",
+            reviews_lo,
+            "#4deeea",
+            border_width=4,
+            title_location="n",
+            key="f_reviews",
             font=25,
         ),
     ],
@@ -654,7 +659,7 @@ stats_panel = [
         sg.Text("Excluded Courses:", text_color="#4deeea", size=(15, 1)),
         sg.Text("0", key="stat_excluded", text_color="#FF4500", size=(8, 1)),
         sg.Text("Pending Enrollment:", text_color="#4deeea", size=(15, 1)),
-        sg.Text("0/20", key="stat_ready_enroll", text_color="#FFA500", size=(8, 1)),
+        sg.Text("0/5", key="stat_ready_enroll", text_color="#FFA500", size=(8, 1)),
     ],
 ]
 
@@ -760,6 +765,13 @@ while True:
             filter(None, values["title_exclude"].split("\n"))
         )
         udemy.settings["min_rating"] = float(values["min_rating"])
+        for filter_key in ("min_students", "max_students", "min_reviews", "max_reviews"):
+            try:
+                udemy.settings[filter_key] = max(
+                    0, int(str(values[filter_key]).strip() or 0)
+                )
+            except ValueError:
+                udemy.settings[filter_key] = 0
         udemy.settings["course_update_threshold_months"] = int(
             values["course_update_threshold_months"]
         )
