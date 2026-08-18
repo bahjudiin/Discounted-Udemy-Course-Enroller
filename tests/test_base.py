@@ -464,6 +464,34 @@ def test_settings_migration_adds_filter_defaults():
     for key in ("min_students", "max_students", "min_reviews", "max_reviews"):
         assert u.settings.get(key) == 0, key
     assert u.settings["sites"].get("FreebiesGlobal") is True
+    assert u.settings["sites"].get("Online Courses") is True
+
+
+class FakeResp:
+    def __init__(self, body):
+        self.content = body.encode("utf-8")
+
+
+OC_PAGE = """
+<html><body>
+<h2>Python for Beginners</h2>
+<a href="https://www.udemy.com/course/python-for-beginners/?couponCode=ABC123">Get Deal</a>
+<h2>Django Masterclass</h2>
+<a href="https://www.udemy.com/course/django-masterclass/?couponCode=DEF456">Get Deal</a>
+<h2>Free Course No Coupon</h2>
+<a href="https://www.udemy.com/course/free-course/">Get Deal</a>
+</body></html>
+"""
+
+
+def test_oc_scraper_extracts_coupon_links():
+    s = Scraper(["Online Courses"])
+    with patch.object(s, "fetch_page", return_value=FakeResp(OC_PAGE)):
+        s.oc()
+    titles = [c.title for c in s.oc_data]
+    assert titles == ["Python for Beginners", "Django Masterclass"]
+    assert s.oc_data[0].coupon_code == "ABC123"
+    assert s.oc_data[1].coupon_code == "DEF456"
 
 
 if __name__ == "__main__":

@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.3.10
+- Added new coupon source: Online Courses (onlinecourses.ooo) - paginated
+  dealstore with direct coupon links, ~70 coupons per run (verified live)
+- Now scraping 8 sites: 1824 unique courses per run
+
 ## v2.3.9
 - Major speedup: course data (ids, metadata, stats, coupon validity) is now
   pre-fetched in parallel (8 workers) before enrollment instead of sequentially

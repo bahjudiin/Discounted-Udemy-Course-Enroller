@@ -23,7 +23,7 @@ from rich.traceback import install as rich_traceback_install
 
 rich_traceback_install()
 
-VERSION = "v2.3.9"
+VERSION = "v2.3.10"
 
 
 def get_user_data_path(filename):
@@ -61,6 +61,7 @@ scraper_dict: dict = {
     "Udemy Freebies": "uf",
     "Course Joiner": "cj",
     "FreebiesGlobal": "fg",
+    "Online Courses": "oc",
     # "Course Vania": "cv",  # login-gated, no public coupon links anymore
 }
 
@@ -463,6 +464,54 @@ class Scraper:
                                         break
                             title = re.sub(r"^\s*Expired\s*", "", title)
                             all_items.append((title, href))
+                    self.set_attr("progress", i + 1)
+
+            self.set_attr("length", len(all_items))
+            seen = set()
+            added = 0
+            for title, link in all_items:
+                if link in seen:
+                    continue
+                seen.add(link)
+                link = self.cleanup_link(link)
+                if link:
+                    self.append_to_list(title, link)
+                added += 1
+                self.set_attr("progress", added)
+        except:
+            self.handle_exception()
+        self.set_attr("done", True)
+
+    def oc(self):
+        try:
+            all_items = []
+            self.set_attr("length", 5)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                future_page = [
+                    executor.submit(
+                        self.fetch_page,
+                        f"https://www.onlinecourses.ooo/coupon/dealstore/udemy/?page={page}",
+                    )
+                    for page in range(1, 6)
+                ]
+                for i, future in enumerate(
+                    concurrent.futures.as_completed(future_page)
+                ):
+                    content = future.result().content
+                    soup = self.parse_html(content)
+                    for anchor in soup.find_all("a", href=True):
+                        href = anchor["href"]
+                        if "udemy.com/course/" in href and "couponCode" in href:
+                            heading = anchor.find_previous(
+                                ["h1", "h2", "h3", "h4", "h5"]
+                            )
+                            title = (
+                                heading.get_text(strip=True)
+                                if heading
+                                else anchor.get_text(strip=True)
+                            )
+                            if title:
+                                all_items.append((title, href))
                     self.set_attr("progress", i + 1)
 
             self.set_attr("length", len(all_items))
@@ -905,6 +954,8 @@ class Udemy:
             self.settings["sites"]["Course Joiner"] = True
         if "FreebiesGlobal" not in self.settings["sites"]:
             self.settings["sites"]["FreebiesGlobal"] = True
+        if "Online Courses" not in self.settings["sites"]:
+            self.settings["sites"]["Online Courses"] = True
 
         for dead_site in ("Tutorial Bar", "Course Vania", "IDownloadCoupons"):
             if dead_site in self.settings["sites"]:
