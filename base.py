@@ -23,7 +23,11 @@ from rich.traceback import install as rich_traceback_install
 
 rich_traceback_install()
 
-VERSION = "v2.3.10"
+VERSION = "v2.3.11"
+
+# Dead coupons are skipped for this many hours after being confirmed dead.
+# Keyed by slug+coupon code, so a re-issued code is always checked fresh.
+DEAD_COUPON_TTL_HOURS = 24
 
 
 def get_user_data_path(filename):
@@ -898,6 +902,13 @@ class Udemy:
 
         self.course: Course = None
 
+        # Dead-coupon cache: {slug|coupon: timestamp} - skips re-validating
+        # coupons known to be dead for up to DEAD_COUPON_TTL_HOURS hours.
+        # Keyed by slug+coupon so a re-issued code is always re-checked.
+        self._dead_cache: dict = None
+        self._dead_lock = threading.Lock()
+        self.dead_cache_skipped = 0
+
         # Log program start
         logger.info(f"Program started - {self.interface} mode")
 
@@ -1507,10 +1518,74 @@ class Udemy:
                 self.get_course_id(course)
                 if course.is_valid and not course.is_free:
                     self.check_course(course)
+                if (
+                    course.is_valid
+                    and not course.is_coupon_valid
+                    and course.coupon_code
+                ):
+                    self._cache_dead_coupon(course)
         except Exception as e:
             logger.exception(f"Preparation failed for {course}: {e}")
             course.is_valid = False
             course.error = f"Preparation failed: {str(e)[:100]}"
+
+    def _dead_cache_path(self):
+        return get_user_data_path("duce-dead-coupons.json")
+
+    def _load_dead_cache(self) -> dict:
+        if self._dead_cache is None:
+            self._dead_cache = {}
+            try:
+                if os.path.exists(self._dead_cache_path()):
+                    with open(
+                        self._dead_cache_path(), encoding="utf-8"
+                    ) as f:
+                        data = json.load(f)
+                    now = time.time()
+                    ttl = DEAD_COUPON_TTL_HOURS * 3600
+                    self._dead_cache = {
+                        key: ts for key, ts in data.items() if now - ts < ttl
+                    }
+            except Exception as e:
+                logger.error(f"Failed to load dead-coupon cache: {e}")
+                self._dead_cache = {}
+        return self._dead_cache
+
+    def _save_dead_cache(self):
+        try:
+            with open(self._dead_cache_path(), "w", encoding="utf-8") as f:
+                json.dump(self._load_dead_cache(), f)
+        except Exception as e:
+            logger.error(f"Failed to save dead-coupon cache: {e}")
+
+    @staticmethod
+    def _dead_cache_key(course):
+        slug = course.slug
+        code = course.coupon_code
+        if not slug or not code:
+            return None
+        return f"{slug}|{code}"
+
+    def _is_dead_coupon_cached(self, course) -> bool:
+        """True only for coupons proven dead recently (same slug AND same code)."""
+        key = self._dead_cache_key(course)
+        if not key:
+            return False
+        with self._dead_lock:
+            cached = self._load_dead_cache().get(key)
+            if cached and time.time() - cached < DEAD_COUPON_TTL_HOURS * 3600:
+                logger.debug(f"Skipping cached dead coupon: {key}")
+                return True
+        return False
+
+    def _cache_dead_coupon(self, course):
+        """Record a coupon that was definitively checked as dead. Network
+        failures are never cached - only confirmed invalid coupons."""
+        key = self._dead_cache_key(course)
+        if not key:
+            return
+        with self._dead_lock:
+            self._load_dead_cache()[key] = time.time()
 
     def start_new_enroll(
         self,
@@ -1520,6 +1595,16 @@ class Udemy:
         self.setup_txt_file()
 
         courses: list[Course] = list(self.scraped_data)
+        self.dead_cache_skipped = 0
+        if courses:
+            self.dead_cache_skipped = sum(
+                1 for c in courses if self._is_dead_coupon_cached(c)
+            )
+            courses = [c for c in courses if not self._is_dead_coupon_cached(c)]
+            if self.dead_cache_skipped:
+                logger.info(
+                    f"Skipped {self.dead_cache_skipped} courses with recently dead coupons (cached)"
+                )
         self.total_courses = len(courses)
         self.valid_courses: list[Course] = []
         self.total_courses_processed = 0  # Track progress for UI display
@@ -1628,6 +1713,7 @@ class Udemy:
         if self.valid_courses:
             self.bulk_checkout()
             self.valid_courses.clear()
+        self._save_dead_cache()
         logger.info("Enrollment process completed")
         logger.info(
             f"Successfully Enrolled: {self.successfully_enrolled_c}\nAlready Enrolled: {self.already_enrolled_c}\nExpired: {self.expired_c}\nExcluded: {self.excluded_c}"

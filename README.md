@@ -25,6 +25,33 @@ Everything you need can be on the website: https://techtanic.github.io/duce/
 - CLI version available for automation
 - Advanced filters
 
+## Run from source
+
+```sh
+pip install -r requirements.txt
+python gui.py        # GUI
+python cli.py        # terminal interface
+```
+
+On Windows you can double-click `run-gui.bat` / `run-cli.bat` instead of the
+`.py` files (keeps the console open if something fails).
+
+## Automatic daily runs
+
+- **Local (enrollment):** the CLI runs fully unattended when settings have
+  `use_browser_cookies: true` (or saved email/password). Create a scheduled
+  task with `taskschd.msc` → "Create Basic Task" → Daily → "Start a program" →
+  point it at `run-cli-auto.bat`. Your browser must be logged in to Udemy (the
+  cookies are read from disk, so the browser can be closed).
+- **Monitoring (read-only):** GitHub Actions runs the scraper smoke test
+  (`tests/smoke_all.py`) daily at 06:00 UTC. It never commits anything - if a
+  coupon site changes its HTML, it only opens an issue so you can fix the
+  scraper. Unit tests run on every push/PR.
+- **Dead coupons:** coupons confirmed dead are cached for 24 hours
+  (`duce-dead-coupons.json`) so runs skip re-validating them. The cache is
+  keyed by course + coupon code, so a re-issued code is always checked fresh,
+  and entries expire automatically.
+
 # Downloads
 
 <table>

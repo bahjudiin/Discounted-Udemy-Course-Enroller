@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.3.11
+- Dead-coupon cache: coupons confirmed dead (not network errors) are skipped
+  for 24h, keyed by course slug + coupon code - a re-issued code is always
+  checked fresh and entries expire automatically. Faster runs, less load
+- GitHub Actions CI: unit tests on push/PR, daily 06:00 UTC scraper smoke
+  test that opens an issue when a coupon site breaks (never commits)
+- Added tests/smoke_all.py (read-only scrape check, exit code based)
+- Added run-cli-auto.bat for unattended scheduled runs (Task Scheduler)
+- README: run-from-source and automation instructions
+
 ## v2.3.10
 - Added new coupon source: Online Courses (onlinecourses.ooo) - paginated
   dealstore with direct coupon links, ~70 coupons per run (verified live)

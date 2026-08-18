@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
@@ -492,6 +493,89 @@ def test_oc_scraper_extracts_coupon_links():
     assert titles == ["Python for Beginners", "Django Masterclass"]
     assert s.oc_data[0].coupon_code == "ABC123"
     assert s.oc_data[1].coupon_code == "DEF456"
+
+
+def _u_with_dead_cache(u, entries):
+    u._dead_cache = entries
+    return u
+
+
+def test_dead_coupon_cache_skips_only_same_slug_and_code():
+    u = _u_with_dead_cache(Udemy("cli"), {"x|BAD": 9999999999.0})
+    same = Course("A", "https://www.udemy.com/course/x/?couponCode=BAD")
+    new_code = Course("A", "https://www.udemy.com/course/x/?couponCode=NEW")
+    other_slug = Course("B", "https://www.udemy.com/course/y/?couponCode=BAD")
+    no_code = Course("C", "https://www.udemy.com/course/x/")
+    assert u._is_dead_coupon_cached(same) is True
+    assert u._is_dead_coupon_cached(new_code) is False
+    assert u._is_dead_coupon_cached(other_slug) is False
+    assert u._is_dead_coupon_cached(no_code) is False
+
+
+def test_dead_coupon_cache_expires_after_ttl():
+    u = _u_with_dead_cache(
+        Udemy("cli"), {"x|OLD": time.time() - 25 * 3600}
+    )
+    c = Course("A", "https://www.udemy.com/course/x/?couponCode=OLD")
+    assert u._is_dead_coupon_cached(c) is False
+
+
+def test_prepare_course_caches_confirmed_dead_only():
+    u = Udemy("cli")
+    u.enrolled_courses = {}
+
+    def fake_get_course_id(course=None):
+        course = course or u.course
+        course.course_id = "1234"
+        course.is_valid = True
+
+    with patch.object(u, "get_course_id", side_effect=fake_get_course_id):
+        u.client = Mock()
+        dead_resp = Mock()
+        dead_resp.status_code = 200
+        dead_resp.json.return_value = {
+            "purchase": {
+                "data": {
+                    "list_price": {"amount": 89.99},
+                    "pricing_result": {"discount_percent": 0},
+                }
+            },
+            "redeem_coupon": {"discount_attempts": [{"status": "invalid"}]},
+        }
+        u.client.get.return_value = dead_resp
+        c = Course("Test", "https://www.udemy.com/course/x/?couponCode=BAD")
+        with patch("base.time.sleep"):
+            u._prepare_course(c)
+        assert c.is_valid is True and c.is_coupon_valid is False
+        assert u._is_dead_coupon_cached(c) is True
+
+        # network failure must NOT be cached (course just marked invalid)
+        u2 = Udemy("cli")
+        u2.enrolled_courses = {}
+        with patch.object(u2, "get_course_id", side_effect=fake_get_course_id):
+            u2.client = Mock()
+            u2.client.get.side_effect = RuntimeError("network down")
+            c2 = Course("Test", "https://www.udemy.com/course/x/?couponCode=BAD")
+            with patch("base.time.sleep"):
+                u2._prepare_course(c2)
+        assert c2.is_valid is False
+        assert u2._is_dead_coupon_cached(c2) is False
+
+
+def test_start_new_enroll_skips_cached_dead_coupons():
+    u = Udemy("cli")
+    u.scraped_data = [
+        Course("A", "https://www.udemy.com/course/x/?couponCode=DEAD1"),
+        Course("B", "https://www.udemy.com/course/y/?couponCode=LIVE1"),
+    ]
+    u._dead_cache = {"x|DEAD1": 9999999999.0}
+    u.enrolled_courses = {}
+    u.client = Mock()
+    u.settings = {"save_txt": False}
+    with patch.object(u, "setup_txt_file"), patch.object(u, "_save_dead_cache"):
+        u.start_new_enroll()
+    assert u.dead_cache_skipped == 1
+    assert u.total_courses == 1
 
 
 if __name__ == "__main__":
